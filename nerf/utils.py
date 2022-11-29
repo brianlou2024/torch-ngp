@@ -15,6 +15,8 @@ from datetime import datetime
 
 import cv2
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+import matplotlib.animation as animation
 
 import torch
 import torch.nn as nn
@@ -641,6 +643,8 @@ class Trainer(object):
         if write_video:
             all_preds = []
             all_preds_depth = []
+            
+        # spectral = mpl.colormaps['Spectral'].resampled(8)
 
         with torch.no_grad():
 
@@ -656,8 +660,20 @@ class Trainer(object):
                 pred = (pred * 255).astype(np.uint8)
 
                 pred_depth = preds_depth[0].detach().cpu().numpy()
+                
                 pred_depth = (pred_depth * 255).astype(np.uint8)
-
+                # def filter(x):
+                #     if x <= 127:
+                #         return x
+                #     return 255
+                    
+                #     # return spectral(x)
+                # filter_all = np.vectorize(filter)
+                # pred_depth = filter_all(pred_depth).astype(np.uint8)
+                # TODO Here
+                # pred_depth = cv2.normalize(pred_depth, None, 0, 255, cv2.NORM_MINMAX)
+                # pred_depth = cv2.applyColorMap(pred_depth, cv2.COLORMAP_PLASMA)
+                # all_preds_depth.append([plt.imshow(pred_depth, cmap="plasma",animated=True)])
                 if write_video:
                     all_preds.append(pred)
                     all_preds_depth.append(pred_depth)
@@ -668,10 +684,19 @@ class Trainer(object):
                 pbar.update(loader.batch_size)
         
         if write_video:
+            for i in range(len(all_preds_depth)):
+                plt.imshow(all_preds_depth[i], cmap="plasma")
+                plt.savefig(save_path + "/file%02d.png" % i)
+
+            os.system(
+                f'ffmpeg -framerate 8 -i {os.path.join(save_path, f"file%02d.png")} -r 30 -pix_fmt yuv420p {os.path.join(save_path, f"{name}_depth.mp4")}'
+            )
+            for file_name in glob.glob(save_path+"/*.png"):
+                os.remove(file_name)
             all_preds = np.stack(all_preds, axis=0)
-            all_preds_depth = np.stack(all_preds_depth, axis=0)
+            # all_preds_depth = np.stack(all_preds_depth, axis=0)
             imageio.mimwrite(os.path.join(save_path, f'{name}_rgb.mp4'), all_preds, fps=25, quality=8, macro_block_size=1)
-            imageio.mimwrite(os.path.join(save_path, f'{name}_depth.mp4'), all_preds_depth, fps=25, quality=8, macro_block_size=1)
+            # imageio.mimwrite(os.path.join(save_path, f'{name}_depth.mp4'), all_preds_depth, fps=25, quality=8, macro_block_size=1)
 
         self.log(f"==> Finished Test.")
     

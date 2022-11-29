@@ -150,7 +150,7 @@ if __name__ == '__main__':
             trainer.train(train_loader, valid_loader, max_epoch)
 
             # also test
-            test_loader = NeRFDataset(opt, device=device, type='test').dataloader()
+            test_loader = NeRFDataset(opt, device=device, type='test',n_test=5).dataloader()
             
             if test_loader.has_gt:
                 trainer.evaluate(test_loader) # blender has gt, so evaluate it.

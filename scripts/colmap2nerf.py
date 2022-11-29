@@ -34,12 +34,12 @@ def parse_args():
     parser.add_argument("--video_fps", default=3)
     parser.add_argument("--time_slice", default="", help="time (in seconds) in the format t1,t2 within which the images should be generated from the video. eg: \"--time_slice '10,300'\" will generate images only from 10th second to 300th second of the video")
 
-    parser.add_argument("--colmap_matcher", default="exhaustive", choices=["exhaustive","sequential","spatial","transitive","vocab_tree"], help="select which matcher colmap should use. sequential for videos, exhaustive for adhoc images")
+    parser.add_argument("--colmap_matcher", default="sequential", choices=["exhaustive","sequential","spatial","transitive","vocab_tree"], help="select which matcher colmap should use. sequential for videos, exhaustive for adhoc images")
     parser.add_argument("--skip_early", default=0, help="skip this many images from the start")
 
     parser.add_argument("--colmap_text", default="colmap_text", help="input path to the colmap text files (set automatically if run_colmap is used)")
     parser.add_argument("--colmap_db", default="colmap.db", help="colmap database filename")
-
+    parser.add_argument("--out", default="./", help="output path")
     args = parser.parse_args()
     return args
 
@@ -88,21 +88,25 @@ def run_colmap(args):
         sys.exit(1)
     if os.path.exists(db):
         os.remove(db)
-    do_system(f"colmap feature_extractor --ImageReader.camera_model OPENCV --SiftExtraction.estimate_affine_shape {flag_EAS} --SiftExtraction.domain_size_pooling {flag_EAS} --ImageReader.single_camera 1 --database_path {db} --image_path {images}")
-    do_system(f"colmap {args.colmap_matcher}_matcher --SiftMatching.guided_matching {flag_EAS} --database_path {db}")
+    do_system(f"singularity exec --nv /scratch/gpfs/$USER/colmap_latest.sif colmap feature_extractor --ImageReader.camera_model OPENCV --SiftExtraction.estimate_affine_shape {flag_EAS} --SiftExtraction.domain_size_pooling {flag_EAS} --ImageReader.single_camera 1 --database_path {db} --image_path {images}")
+    do_system(f"singularity exec --nv /scratch/gpfs/$USER/colmap_latest.sif colmap {args.colmap_matcher}_matcher --SiftMatching.guided_matching {flag_EAS} --database_path {db}")
     try:
         shutil.rmtree(sparse)
     except:
         pass
     do_system(f"mkdir {sparse}")
-    do_system(f"colmap mapper --database_path {db} --image_path {images} --output_path {sparse}")
-    do_system(f"colmap bundle_adjuster --input_path {sparse}/0 --output_path {sparse}/0 --BundleAdjustment.refine_principal_point 1")
+    do_system(f"singularity exec --nv /scratch/gpfs/$USER/colmap_latest.sif colmap mapper \
+     	--Mapper.init_min_num_inliers=100 --Mapper.abs_pose_min_num_inliers=10 \
+		--Mapper.init_num_trials=300 --Mapper.max_reg_trials=10 --Mapper.init_max_reg_trials=10 \
+		--Mapper.multiple_models=true --Mapper.min_num_matches=5 \
+      	--database_path {db} --image_path {images} --output_path {sparse}")
+    do_system(f"singularity exec --nv /scratch/gpfs/$USER/colmap_latest.sif colmap bundle_adjuster --input_path {sparse}/0 --output_path {sparse}/0 --BundleAdjustment.refine_principal_point 1")
     try:
         shutil.rmtree(text)
     except:
         pass
     do_system(f"mkdir {text}")
-    do_system(f"colmap model_converter --input_path {sparse}/0 --output_path {text} --output_type TXT")
+    do_system(f"singularity exec --nv /scratch/gpfs/$USER/colmap_latest.sif colmap model_converter --input_path {sparse}/0 --output_path {text} --output_type TXT")
 
 def variance_of_laplacian(image):
     return cv2.Laplacian(image, cv2.CV_64F).var()
@@ -158,6 +162,7 @@ def closest_point_2_lines(oa, da, ob, db): # returns point closest to both rays 
 if __name__ == "__main__":
     args = parse_args()
 
+    OUT_PATH = args.out
     if args.video != "":
         root_dir = os.path.dirname(args.video)
         args.images = os.path.join(root_dir, "images") # override args.images
@@ -353,7 +358,7 @@ if __name__ == "__main__":
     # just one transforms.json, don't do data split
     if args.hold <= 0:
 
-        write_json('transforms.json', frames)
+        write_json(OUT_PATH+'transforms.json', frames)
         
     else:
         all_ids = np.arange(N)
@@ -363,6 +368,6 @@ if __name__ == "__main__":
         frames_train = [f for i, f in enumerate(frames) if i in train_ids]
         frames_test = [f for i, f in enumerate(frames) if i in test_ids]
 
-        write_json('transforms_train.json', frames_train)
-        write_json('transforms_val.json', frames_test[::10])
-        write_json('transforms_test.json', frames_test)
+        write_json(OUT_PATH+'transforms_train.json', frames_train)
+        write_json(OUT_PATH+'transforms_val.json', frames_test[::10])
+        write_json(OUT_PATH+'transforms_test.json', frames_test)

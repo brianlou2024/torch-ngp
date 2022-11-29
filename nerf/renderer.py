@@ -126,7 +126,7 @@ class NeRFRenderer(nn.Module):
         # rays_o, rays_d: [B, N, 3], assumes B == 1
         # bg_color: [3] in range [0, 1]
         # return: image: [B, N, 3], depth: [B, N]
-
+        
         prefix = rays_o.shape[:-1]
         rays_o = rays_o.contiguous().view(-1, 3)
         rays_d = rays_d.contiguous().view(-1, 3)
@@ -223,6 +223,9 @@ class NeRFRenderer(nn.Module):
         
         # calculate depth 
         ori_z_vals = ((z_vals - nears) / (fars - nears)).clamp(0, 1)
+        # torch.nn.Softmax(weights)
+        t = torch.nn.Threshold(1e-2, 0, inplace=True)
+        t(weights)
         depth = torch.sum(weights * ori_z_vals, dim=-1)
 
         # calculate color
@@ -549,7 +552,6 @@ class NeRFRenderer(nn.Module):
 
         B, N = rays_o.shape[:2]
         device = rays_o.device
-
         # never stage when cuda_ray
         if staged and not self.cuda_ray:
             depth = torch.empty((B, N), device=device)

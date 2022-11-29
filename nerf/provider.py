@@ -163,23 +163,30 @@ class NeRFDataset:
         #frames = sorted(frames, key=lambda d: d['file_path']) # why do I sort...
         
         # for colmap, manually interpolate a test set.
-        if self.mode == 'colmap' and type == 'test':
+        if (self.mode == 'colmap' or self.mode == "blender") and type == 'test':
+            
+            self.poses = []
             
             # choose two random poses, and interpolate between.
-            f0, f1 = np.random.choice(frames, 2, replace=False)
+            # frames = np.random.choice(frames, 20, replace=False)
+            f0 = frames[0]
             pose0 = nerf_matrix_to_ngp(np.array(f0['transform_matrix'], dtype=np.float32), scale=self.scale, offset=self.offset) # [4, 4]
-            pose1 = nerf_matrix_to_ngp(np.array(f1['transform_matrix'], dtype=np.float32), scale=self.scale, offset=self.offset) # [4, 4]
-            rots = Rotation.from_matrix(np.stack([pose0[:3, :3], pose1[:3, :3]]))
-            slerp = Slerp([0, 1], rots)
+            for j in range(1,len(frames),10):
+                f1 = frames[j]
+                
+                pose1 = nerf_matrix_to_ngp(np.array(f1['transform_matrix'], dtype=np.float32), scale=self.scale, offset=self.offset) # [4, 4]
+                rots = Rotation.from_matrix(np.stack([pose0[:3, :3], pose1[:3, :3]]))
+                slerp = Slerp([0, 1], rots)
 
-            self.poses = []
-            self.images = None
-            for i in range(n_test + 1):
-                ratio = np.sin(((i / n_test) - 0.5) * np.pi) * 0.5 + 0.5
-                pose = np.eye(4, dtype=np.float32)
-                pose[:3, :3] = slerp(ratio).as_matrix()
-                pose[:3, 3] = (1 - ratio) * pose0[:3, 3] + ratio * pose1[:3, 3]
-                self.poses.append(pose)
+                self.images = None
+                for i in range(n_test + 1):
+                    ratio = np.sin(((i / n_test) - 0.5) * np.pi) * 0.5 + 0.5
+                    pose = np.eye(4, dtype=np.float32)
+                    pose[:3, :3] = slerp(ratio).as_matrix()
+                    pose[:3, 3] = (1 - ratio) * pose0[:3, 3] + ratio * pose1[:3, 3]
+                    self.poses.append(pose)
+                    # print(pose)
+                pose0 = pose1
 
         else:
             # for colmap, manually split a valid set (the first frame).
