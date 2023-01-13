@@ -14,6 +14,5 @@ conda activate torchngp
 # python scripts/colmap2nerf.py --colmap_matcher=exhaustive --images $DATASET_PATH/images/ --out $DATASET_PATH/
 mkdir -p data/$EXPERIMENT_NAME
 # python raymarching/setup.py build_ext --inplace
-python main_nerf.py $DATASET_PATH --fp16 --preload --workspace=data/$EXPERIMENT_NAME/ --iters $ITERATIONS
-
-python main_nerf.py $DATASET_PATH --test --fp16 --preload --workspace=data/$EXPERIMENT_NAME/ --iters $ITERATIONS
+# python main_nerf.py $DATASET_PATH --fp16 --preload --workspace=data/$EXPERIMENT_NAME --iters $ITERATIONS
+python main_nerf.py $DATASET_PATH --test --fp16 --preload --workspace=data/$EXPERIMENT_NAME --iters $ITERATIONS
